@@ -9,6 +9,10 @@ venv/
 .venv/
 pip-log.txt
 
+# Logs
+logs/
+*.log
+
 # Environment
 .env
 .env.local

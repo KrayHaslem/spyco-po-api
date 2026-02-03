@@ -6,6 +6,7 @@ from models.order_item import OrderItem
 from models.approver import Approver
 from models.vendor import Vendor
 from models.unit import Unit
+from lib.sms_service import notify_order_pending, notify_order_approved, notify_order_paid
 
 
 def get_orders(current_user):
@@ -257,6 +258,9 @@ def submit_order(order_id, current_user):
     order.status = OrderStatus.PENDING
     db.session.commit()
 
+    # Notify approvers via SMS
+    notify_order_pending(order, approvers, current_user.full_name)
+
     return jsonify({
         "message": "Order submitted for approval",
         "order": order.to_dict(include_relations=True),
@@ -285,6 +289,11 @@ def approve_order(order_id, current_user):
     order.approved_by_id = current_user.id
     order.approved_at = datetime.now(timezone.utc)
     db.session.commit()
+
+    # Notify all active admins via SMS
+    from models.user import User
+    admins = User.query.filter_by(is_admin=True, is_active=True).all()
+    notify_order_approved(order, admins)
 
     return jsonify({
         "message": "Order approved",
@@ -402,6 +411,9 @@ def mark_order_paid(order_id, current_user):
 
     order.status = OrderStatus.PAID
     db.session.commit()
+
+    # Notify the original order creator via SMS
+    notify_order_paid(order, order.ordered_by)
 
     return jsonify({
         "message": "Order marked as paid",

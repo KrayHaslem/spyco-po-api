@@ -7,6 +7,7 @@ from models.unit import Unit, UnitType
 from models.approver import Approver
 from models.approver_department import ApproverDepartment
 from models.technician import Technician
+from lib.phone_utils import format_us_phone
 
 
 # ============== DEPARTMENTS ==============
@@ -111,7 +112,7 @@ def create_user(current_user):
     if not data:
         return jsonify({"error": "No data provided"}), 400
 
-    required = ["email", "password", "first_name", "last_name"]
+    required = ["email", "password", "first_name", "last_name", "phone"]
     for field in required:
         if not data.get(field):
             return jsonify({"error": f"{field} is required"}), 400
@@ -124,11 +125,16 @@ def create_user(current_user):
     if len(data["password"]) < 8:
         return jsonify({"error": "Password must be at least 8 characters"}), 400
 
+    # Validate and format phone number
+    formatted_phone = format_us_phone(data["phone"])
+    if not formatted_phone:
+        return jsonify({"error": "Invalid phone number. Must be a valid 10-digit US number"}), 400
+
     user = User(
         email=email,
         first_name=data["first_name"],
         last_name=data["last_name"],
-        phone=data.get("phone"),
+        phone=formatted_phone,
         department_id=data.get("department_id") or None,
         job_title=data.get("job_title") or None,
         is_admin=data.get("is_admin", False),
@@ -167,7 +173,12 @@ def update_user(user_id, current_user):
     if "last_name" in data:
         user.last_name = data["last_name"]
     if "phone" in data:
-        user.phone = data["phone"]
+        if not data["phone"]:
+            return jsonify({"error": "Phone number is required"}), 400
+        formatted_phone = format_us_phone(data["phone"])
+        if not formatted_phone:
+            return jsonify({"error": "Invalid phone number. Must be a valid 10-digit US number"}), 400
+        user.phone = formatted_phone
     if "department_id" in data:
         user.department_id = data["department_id"] or None
     if "job_title" in data:

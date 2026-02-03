@@ -7,6 +7,7 @@ from models.approver import Approver
 from models.technician import Technician
 from models.unit import Unit
 from app import REPAIRS_DEPARTMENT_ID
+from lib.sms_service import notify_repair_pending, notify_repair_approved, notify_repair_completed
 
 
 def get_repairs(current_user):
@@ -242,6 +243,9 @@ def submit_repair(repair_id, current_user):
     repair.status = RepairStatus.PENDING
     db.session.commit()
 
+    # Notify approvers via SMS
+    notify_repair_pending(repair, approvers, current_user.full_name)
+
     return jsonify({
         "message": "Repair submitted for approval",
         "repair": repair.to_dict(include_relations=True),
@@ -270,6 +274,10 @@ def approve_repair(repair_id, current_user):
     repair.approved_by_id = current_user.id
     repair.approved_at = datetime.now(timezone.utc)
     db.session.commit()
+
+    # Notify all active technicians via SMS
+    technicians = Technician.query.filter_by(is_active=True).all()
+    notify_repair_approved(repair, technicians)
 
     return jsonify({
         "message": "Repair approved",
@@ -346,6 +354,9 @@ def complete_repair(repair_id, current_user):
     repair.completed_by_id = current_user.id
     repair.completed_at = datetime.now(timezone.utc)
     db.session.commit()
+
+    # Notify the original repair requester via SMS
+    notify_repair_completed(repair, repair.requested_by)
 
     return jsonify({
         "message": "Repair marked as completed",
